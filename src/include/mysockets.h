@@ -10,8 +10,11 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#define MAX_MSJ 1024
+#define MAX_BUFFER 1024
 
 #define IPV4 0
 #define IPV6 1
@@ -30,3 +33,5 @@ void instalar_handlers(__sighandler_t s, int signal);
 void sigint_handler();
 
 void sigchld_handler();
+
+void error(char * msj);

@@ -3,7 +3,8 @@
 int main(int argc, char *argv[]){
     int sfd, port;
 	struct sockaddr_in6 server_address;
-    char msj[MAX_MSJ];
+    char buffer[MAX_BUFFER];
+    memset(buffer, '\0', MAX_BUFFER);
 
     if(argc < 3){
 		fprintf(stderr, "Uso: %s <host> <puerto>\n", argv[0]);
@@ -19,18 +20,18 @@ int main(int argc, char *argv[]){
 
     sfd = get_tcp_client_socket(PF_INET6, (struct sockaddr *)&server_address, sizeof(server_address));
 
-    instalar_handlers(sigint_handler, SIGINT);
-    
     while(1){
         int n;
-        memset(msj, '\0', MAX_MSJ);
-        strcpy(msj, "hola ipv6");
+        
+        fgets(buffer, MAX_BUFFER, stdin);
+        buffer[strlen(buffer) - 1] = '\0';//reemplazo \n por \0
+        if(strcmp(buffer, "quit") == 0) break;
 
-        n = (int) write(sfd, msj, strlen(msj));
-        if(n < 0){
-            perror("Error write");
-            exit(EXIT_FAILURE);
-        }
+        if((n = (int) write(sfd, buffer, strlen(buffer))) < 0) error("Error write");
+
+        if((n = (int) read(sfd, buffer, strlen(buffer))) < 0) error("Error read");
+
+        printf("%s\n", buffer);
     }
     close(sfd);
     exit(EXIT_SUCCESS);

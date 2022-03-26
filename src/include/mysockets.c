@@ -4,8 +4,7 @@ int get_tcp_socket(int domain){
     int sfd = -1;
     
     if((sfd = socket(domain, SOCK_STREAM || SOCK_NONBLOCK, 0)) < 0){
-		perror("Error socket");
-		exit(EXIT_FAILURE);
+		error("Error socket");
 	}
 
     return sfd;
@@ -16,8 +15,7 @@ int get_tcp_client_socket(int domain, struct sockaddr * address, socklen_t addre
 
     if(connect(sfd, address, address_struct_len) < 0){
 		close(sfd);
-        perror("Error connect");
-		exit(EXIT_FAILURE);
+        error("Error connect");
 	}
 
     return sfd;
@@ -26,14 +24,12 @@ int get_tcp_client_socket(int domain, struct sockaddr * address, socklen_t addre
 void make_listener_socket(int sfd, struct sockaddr * address, socklen_t address_struct_len){
     if(bind(sfd, address, address_struct_len) < 0){
         close(sfd);
-        perror("Error bind"); 
-        exit(EXIT_FAILURE);
+        error("Error bind"); 
     }
 
     if(listen(sfd, 5) == -1){
         close(sfd);
-        perror("Error listen");
-        exit(EXIT_FAILURE);
+        error("Error listen");
     }
 }
 
@@ -65,13 +61,11 @@ void instalar_handlers(__sighandler_t s, int signal){
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
     if(sigaction(signal, &sa, NULL) == -1){
-        perror("Error sigaction");
-        exit(EXIT_FAILURE);
+        error("Error sigaction");
     }
 }
 
 void sigint_handler(){
-    printf("chau");
     exit(EXIT_SUCCESS);
 }
 
@@ -80,4 +74,9 @@ void sigchld_handler(){
     int saved_errno = errno;
     while(waitpid(-1, NULL, WNOHANG) > 0);
     errno = saved_errno;
+}
+
+void error(char *msj){
+    perror(msj);
+    exit(EXIT_FAILURE);
 }

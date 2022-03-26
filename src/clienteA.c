@@ -3,7 +3,7 @@
 int main(int argc, char *argv[]){
     int sfd = -1, port;
 	struct sockaddr_in server_address;
-    char msj[MAX_MSJ];
+    char buffer[MAX_BUFFER];
 
     if(argc < 3){
 		fprintf(stderr, "Uso: %s <host> <puerto>\n", argv[0]);
@@ -21,16 +21,13 @@ int main(int argc, char *argv[]){
 
     instalar_handlers(sigint_handler, SIGINT);
     
+    memset(buffer, '\0', MAX_BUFFER);
+    strcpy(buffer, "QUERY;");
     while(1){
         int n;
-        memset(msj, '\0', MAX_MSJ);
-        strcpy(msj, "hola ipv4");
 
-        n = (int) write(sfd, msj, strlen(msj));
-        if(n < 0){
-            perror("Error write");
-            exit(EXIT_FAILURE);
-        }
+        n = (int) write(sfd, buffer, strlen(buffer));
+        if(n < 0) error("Error write");
     }
     close(sfd);
     exit(EXIT_SUCCESS);
