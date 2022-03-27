@@ -20,6 +20,10 @@
 #define IPV6 1
 #define UNIX 2
 
+#define CLI_A IPV4
+#define CLI_B IPV6
+#define CLI_C UNIX
+
 int get_tcp_socket(int domain);
 
 int get_tcp_client_socket(int domain, struct sockaddr * address, socklen_t address_struct_len);

@@ -3,7 +3,7 @@
 int main(int argc, char *argv[]){
     int sfd = -1, port;
 	struct sockaddr_in server_address;
-    char buffer[MAX_BUFFER];
+    char query[MAX_BUFFER], answer[MAX_BUFFER];
 
     if(argc < 3){
 		fprintf(stderr, "Uso: %s <host> <puerto>\n", argv[0]);
@@ -21,14 +21,20 @@ int main(int argc, char *argv[]){
 
     instalar_handlers(sigint_handler, SIGINT);
     
-    memset(buffer, '\0', MAX_BUFFER);
-    strcpy(buffer, "QUERY;");
+    memset(query, '\0', MAX_BUFFER);
+    strcpy(query, "QUERY;");
     while(1){
         int n;
 
-        n = (int) write(sfd, buffer, strlen(buffer));
+        n = (int) write(sfd, query, strlen(query));
         if(n < 0) error("Error write");
+
+        memset(answer, '\0', MAX_BUFFER);
+        n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
+        if(n < 0) error("Error read");   
+        printf("%s\n", answer);
     }
+
     close(sfd);
     exit(EXIT_SUCCESS);
 }

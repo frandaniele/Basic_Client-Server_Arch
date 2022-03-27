@@ -1,21 +1,44 @@
-#include "include/mysockets.h"
 #include <poll.h>
-#include <sys/time.h>
-#include <sys/mman.h>
 #include <sys/sendfile.h>
+#include "include/mysockets.h"
+#include "include/sqlite3.h"
+
+static int callback(void *NotUsed, int argc, char **argv, char **azColName){
+    int i;
+    for(i = 0; i < argc; i++){
+        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    }
+    printf("\n");
+
+    NotUsed = NotUsed;
+
+    return 0;
+}
+
+void open_db_connections(char *filename, sqlite3 *db);
+
+void close_db_connections(sqlite3 **db_list);
+
+int get_connection(int *list, int n);
+
+void release_connection(int *list, int index);
 
 int main(int argc, char *argv[]){
     int sfdinet, sfdunix, sfdinet6;
     socklen_t address_size, server_struct_len;
-    char msj[MAX_BUFFER];
     struct sockaddr_storage incoming_address;
 	struct sockaddr_un server_address;
     struct pollfd *pfds = malloc(sizeof(*pfds) * 3); //3 sockets
+    sqlite3 *db_connections[5];
+    int connections[5] = {1, 1, 1, 1, 1};
     
-    if(argc != 7){
-        fprintf(stderr, "Uso: %s <archivo socket> <ipv4> <puerto ipv4> <ipv6> <puerto ipv6> <nombre archivo de datos>\n", argv[0]);
+    if(argc != 8){
+        fprintf(stderr, "Uso: %s <archivo socket> <ipv4> <puerto ipv4> <ipv6> <puerto ipv6> <nombre archivo de datos> <database>\n", argv[0]);
 		exit(EXIT_SUCCESS);
     }
+
+    /* open database connections */
+    for(int i = 0; i < 5; i++) open_db_connections(argv[7], db_connections[i]);
 
     /* preparando socket UNIX */
     unlink(argv[1]);
@@ -58,16 +81,19 @@ int main(int argc, char *argv[]){
         if(poll_count < 0){
             error("Error poll");
         }else{ //never 0 because no timeout
-            int nsfd;
+            int nsfd, tipo_cliente = -1;
             address_size = sizeof(incoming_address);
 
             if(pfds[0].revents & POLLIN){ //ipv4 socket
                 nsfd = accept(sfdinet, (struct sockaddr *)&incoming_address, &address_size);
+                tipo_cliente = CLI_A;
             }
             else if(pfds[1].revents & POLLIN){ //unix socket
                 nsfd = accept(sfdunix, (struct sockaddr *)&incoming_address, &address_size);
+                tipo_cliente = CLI_C;
             }else{ //ipv6 socket
                 nsfd = accept(sfdinet6, (struct sockaddr *)&incoming_address, &address_size);
+                tipo_cliente = CLI_B;
             }
 
             int pid2 = fork(); //creo un hijo para manejar la nueva conexion
@@ -79,17 +105,56 @@ int main(int argc, char *argv[]){
                     close(sfdinet);//cierro los fd de sockets que no me interesan
                     close(sfdunix);
                     close(sfdinet6);
+
+                    int n_conexion;
+                    while((n_conexion = (get_connection(connections, 5))) == -1);
                     /*
                     man sendfile
                     tengo que hacer un send del file size (fstat) y desp mandar todo con sendfile
                     */
-                    while(1){
-                        int n = 0;
-                        memset(msj, 0, MAX_BUFFER);
-                        if((n = (int) recv(nsfd, msj, MAX_BUFFER - 1, 0)) <= 0){ //recibo un mensaje
+
+                    int n = 0;
+                    char *zErrMsg = 0;
+
+                    switch(tipo_cliente){
+                        case CLI_A: ;
+                            char query[MAX_BUFFER];
+                            
+                            while(1){
+                                memset(query, 0, MAX_BUFFER);
+                                if((n = (int) recv(nsfd, query, MAX_BUFFER - 1, 0)) <= 0){ //recibo un mensaje
+                                    break; //cliente desconectado
+                                }
+
+                                if(sqlite3_exec(db_connections[n_conexion], query, callback, 0, &zErrMsg) != SQLITE_OK){
+                                    fprintf(stderr, "SQL error: %s\n", zErrMsg);
+                                    sqlite3_free(zErrMsg);
+                                }
+
+                                n = (int) write(nsfd, query, strlen(query));
+                                if(n < 0) error("Error write");
+                            }
+
                             printf("El cliente se desconectó.\n");
+                            sqlite3_close(db_connections[n_conexion]);
+                            release_connection(connections, n_conexion);
                             exit(EXIT_SUCCESS);
-                        }
+                        case CLI_B:
+                            
+                            
+                            sqlite3_close(db_connections[n_conexion]);
+                            release_connection(connections, n_conexion);
+                            exit(EXIT_SUCCESS);
+                        case CLI_C:
+                            
+
+                            sqlite3_close(db_connections[n_conexion]);
+                            release_connection(connections, n_conexion);
+                            exit(EXIT_SUCCESS);
+
+                        default:
+                            fprintf(stderr, "Error desconocido.\n");
+                            exit(EXIT_FAILURE);
                     }
                     close(nsfd);
                     exit(EXIT_SUCCESS);
@@ -99,9 +164,45 @@ int main(int argc, char *argv[]){
             }
         }
     }
+    close_db_connections(db_connections);
+
     close(sfdinet);
     close(sfdunix);
     close(sfdinet6);
 
     return 0;
+}
+
+void open_db_connections(char *filename, sqlite3 *db){
+    int rc = sqlite3_open_v2(filename, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, NULL);
+    if(rc){
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void close_db_connections(sqlite3 **db_list){
+    sqlite3 *db = db_list[0];
+    int i = 1;
+
+    while(db != NULL){
+        sqlite3_close(db);
+        i++;
+    }
+}
+
+int get_connection(int *list, int n){
+    for(int i = 0; i < n; i++){
+        if(list[i] == 1){
+            list[i] = 0;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void release_connection(int *list, int index){
+    list[index] = 1;
 }
