@@ -1,4 +1,4 @@
-#include "include/mysockets.h"
+#include "include/headers/mysockets.h"
 
 int main(int argc, char *argv[]){
     int sfd = -1, port;
@@ -32,7 +32,9 @@ int main(int argc, char *argv[]){
         memset(answer, '\0', MAX_BUFFER);
         n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
         if(n < 0) error("Error read");   
+
         printf("%s\n", answer);
+        sleep(2);
     }
 
     close(sfd);

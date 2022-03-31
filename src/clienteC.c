@@ -1,4 +1,4 @@
-#include "include/mysockets.h"
+#include "include/headers/mysockets.h"
 
 int main(int argc, char *argv[]){
     int sfd, n, file_size, bytes_recvd = 0;
@@ -26,7 +26,7 @@ int main(int argc, char *argv[]){
 
     printf("Receiving: %i bytes\n", file_size);
 
-    while(bytes_recvd < file_size){
+    while(bytes_recvd < file_size){ // recibe el archivo
         n = (int) read(sfd, buffer, MAX_BUFFER);
         if(n < 0) error("Error read");
 

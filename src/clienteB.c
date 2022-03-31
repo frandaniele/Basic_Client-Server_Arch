@@ -1,4 +1,4 @@
-#include "include/mysockets.h"
+#include "include/headers/mysockets.h"
 
 int main(int argc, char *argv[]){
     int sfd, port;
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]){
 
         if((n = (int) write(sfd, buffer, strlen(buffer))) < 0) error("Error write");
 
-        if((n = (int) read(sfd, buffer, strlen(buffer))) < 0) error("Error read");
+        if((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) < 0) error("Error read");
 
         printf("%s\n", buffer);
     }

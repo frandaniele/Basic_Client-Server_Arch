@@ -1,28 +1,9 @@
 #include <poll.h>
 #include <sys/sendfile.h>
 #include <sys/mman.h>
-#include "include/mysockets.h"
-#include "include/sqlite3.h"
-
-static int callback(void *NotUsed, int argc, char **argv, char **azColName){
-    int i;
-    for(i = 0; i < argc; i++){
-        printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-    }
-    printf("\n");
-
-    NotUsed = NotUsed;
-
-    return 0;
-}
-
-void open_db_connections(char *filename, sqlite3 *db);
-
-void close_db_connections(sqlite3 **db_list);
-
-int get_connection(int *list, int n);
-
-void release_connection(int *list, int index);
+#include "include/headers/sqlite3.h"
+#include "include/headers/mysockets.h"
+#include "include/headers/mysqlite.h"
 
 int main(int argc, char *argv[]){
     int sfdinet, sfdunix, sfdinet6;
@@ -36,12 +17,13 @@ int main(int argc, char *argv[]){
 		exit(EXIT_SUCCESS);
     }
 
-    /* open database connections */
+    /* 5 handlers de db compartidos por todos */
     sqlite3 **db_connections = mmap(NULL, 5*sizeof(sqlite3 *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if(db_connections == MAP_FAILED) error("Mapping");
 
     for(int i = 0; i < 5; i++) open_db_connections(argv[6], db_connections[i]);
 
+    /* vector para controlar acceso a handlers */
     int* connections = mmap(NULL, 5*sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	if(connections == MAP_FAILED) error("Mapping");
 
@@ -114,39 +96,27 @@ int main(int argc, char *argv[]){
                     close(sfdinet6);
 
                     int n_conexion; 
-                    while((n_conexion = (get_connection(connections, 5))) == -1);
+                    while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
 
                     int n = 0;
 
                     switch(tipo_cliente){
-                        case CLI_A: 
+                        case CLI_A: // estos clientes hacen lo mismo, mandan query y esperan respuesta
                         case CLI_B: ;
                             char query[MAX_BUFFER];
+                            char answer[MAX_BUFFER];
 
                             while(1){
                                 memset(query, 0, MAX_BUFFER);
-                                if((n = (int) recv(nsfd, query, MAX_BUFFER - 1, 0)) <= 0){ //recibo un mensaje
+                                memset(answer, 0, MAX_BUFFER);
+
+                                if((n = (int) read(nsfd, query, MAX_BUFFER - 1)) <= 0){ //recibo query
                                     break; //cliente desconectado
                                 }
-                                sqlite3_stmt *stmt;
-                                int rc = sqlite3_prepare_v2(db_connections[n_conexion], query, -1, &stmt, NULL);
-                                if(rc != SQLITE_OK){
-                                    print("error: ", sqlite3_errmsg(db));
-                                    exit(EXIT_FAILURE);
-                                }
 
-                                while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-                                    int id = sqlite3_column_int (stmt, 0);
-                                    const char *name = sqlite3_column_text(stmt, 1);
-                                    // ...
-                                }
-                                if(rc != SQLITE_DONE){
-                                    print("error: ", sqlite3_errmsg(db));
-                                }
-                                sqlite3_finalize(stmt);
+                                strcpy(answer, "Recibi tu consulta pero todavia no se que hacer.\n");
 
-
-                                n = (int) write(nsfd, query, strlen(query));
+                                n = (int) write(nsfd, answer, strlen(answer)); //respondo
                                 if(n < 0) error("Error write");
                             }
 
@@ -154,22 +124,19 @@ int main(int argc, char *argv[]){
                             sqlite3_close(db_connections[n_conexion]);
                             release_connection(connections, n_conexion);
                             exit(EXIT_SUCCESS);
-                        case CLI_C: ;
-                             /*
-                                man sendfile
-                                tengo que hacer un send del file size (fstat) y desp mandar todo con sendfile
-                                */
-                            int out_fd = open(argv[6], O_RDONLY);
+                        case CLI_C: ; // este cliente solicita descargar el archivo de la base de datos
+                            int out_fd = open(argv[6], O_RDONLY); //abro el archivo pasado como argumento
                             if(out_fd < 0) error("Error open");
 
-                            struct stat finfo;
+                            struct stat finfo;// para calcular el tamaño del archivo
                             if(fstat(out_fd, &finfo) != 0) error("Error fstat");
-                            n = (int) write(nsfd, &finfo.st_size, sizeof(finfo.st_size));
+                            
+                            n = (int) write(nsfd, &finfo.st_size, sizeof(finfo.st_size));// le paso el tamaño
                             if(n < 0) error("Error write");
 
                             printf("Sending %ld bytes\n", finfo.st_size);
 
-                            n = (int) sendfile(nsfd, out_fd, 0, (size_t) finfo.st_size);
+                            n = (int) sendfile(nsfd, out_fd, 0, (size_t) finfo.st_size); // le mando el archivo
                             if(n < 0) error("Error sendfile");
 
                             printf("Sended %i bytes\n", n);
@@ -199,38 +166,4 @@ int main(int argc, char *argv[]){
     close(sfdinet6);
 
     return 0;
-}
-
-void open_db_connections(char *filename, sqlite3 *db){
-    int rc = sqlite3_open_v2(filename, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, NULL);
-    if(rc){
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        exit(EXIT_FAILURE);
-    }
-}
-
-void close_db_connections(sqlite3 **db_list){
-    sqlite3 *db = db_list[0];
-    int i = 1;
-
-    while(db != NULL){
-        sqlite3_close(db);
-        i++;
-    }
-}
-
-int get_connection(int *list, int n){
-    for(int i = 0; i < n; i++){
-        if(list[i] == 1){
-            list[i] = 0;
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-void release_connection(int *list, int index){
-    list[index] = 1;
 }
