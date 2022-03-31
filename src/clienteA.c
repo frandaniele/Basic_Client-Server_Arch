@@ -22,7 +22,7 @@ int main(int argc, char *argv[]){
     instalar_handlers(sigint_handler, SIGINT);
     
     memset(query, '\0', MAX_BUFFER);
-    strcpy(query, "QUERY;");
+    strcpy(query, "SELECT * FROM Cars;");
     while(1){
         int n;
 

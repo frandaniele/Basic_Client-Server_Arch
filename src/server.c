@@ -1,5 +1,6 @@
 #include <poll.h>
 #include <sys/sendfile.h>
+#include <sys/mman.h>
 #include "include/mysockets.h"
 #include "include/sqlite3.h"
 
@@ -29,16 +30,22 @@ int main(int argc, char *argv[]){
     struct sockaddr_storage incoming_address;
 	struct sockaddr_un server_address;
     struct pollfd *pfds = malloc(sizeof(*pfds) * 3); //3 sockets
-    sqlite3 *db_connections[5];
-    int connections[5] = {1, 1, 1, 1, 1};
     
-    if(argc != 8){
-        fprintf(stderr, "Uso: %s <archivo socket> <ipv4> <puerto ipv4> <ipv6> <puerto ipv6> <nombre archivo de datos> <database>\n", argv[0]);
+    if(argc != 7){
+        fprintf(stderr, "Uso: %s <archivo socket> <ipv4> <puerto ipv4> <ipv6> <puerto ipv6> <database>\n", argv[0]);
 		exit(EXIT_SUCCESS);
     }
 
     /* open database connections */
-    for(int i = 0; i < 5; i++) open_db_connections(argv[7], db_connections[i]);
+    sqlite3 **db_connections = mmap(NULL, 5*sizeof(sqlite3 *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    if(db_connections == MAP_FAILED) error("Mapping");
+
+    for(int i = 0; i < 5; i++) open_db_connections(argv[6], db_connections[i]);
+
+    int* connections = mmap(NULL, 5*sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if(connections == MAP_FAILED) error("Mapping");
+
+    for(int i = 0; i < 5; i++) connections[i] = 1;
 
     /* preparando socket UNIX */
     unlink(argv[1]);
@@ -106,30 +113,38 @@ int main(int argc, char *argv[]){
                     close(sfdunix);
                     close(sfdinet6);
 
-                    int n_conexion;
+                    int n_conexion; 
                     while((n_conexion = (get_connection(connections, 5))) == -1);
-                    /*
-                    man sendfile
-                    tengo que hacer un send del file size (fstat) y desp mandar todo con sendfile
-                    */
 
                     int n = 0;
-                    char *zErrMsg = 0;
 
                     switch(tipo_cliente){
-                        case CLI_A: ;
+                        case CLI_A: 
+                        case CLI_B: ;
                             char query[MAX_BUFFER];
-                            
+
                             while(1){
                                 memset(query, 0, MAX_BUFFER);
                                 if((n = (int) recv(nsfd, query, MAX_BUFFER - 1, 0)) <= 0){ //recibo un mensaje
                                     break; //cliente desconectado
                                 }
-
-                                if(sqlite3_exec(db_connections[n_conexion], query, callback, 0, &zErrMsg) != SQLITE_OK){
-                                    fprintf(stderr, "SQL error: %s\n", zErrMsg);
-                                    sqlite3_free(zErrMsg);
+                                sqlite3_stmt *stmt;
+                                int rc = sqlite3_prepare_v2(db_connections[n_conexion], query, -1, &stmt, NULL);
+                                if(rc != SQLITE_OK){
+                                    print("error: ", sqlite3_errmsg(db));
+                                    exit(EXIT_FAILURE);
                                 }
+
+                                while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                                    int id = sqlite3_column_int (stmt, 0);
+                                    const char *name = sqlite3_column_text(stmt, 1);
+                                    // ...
+                                }
+                                if(rc != SQLITE_DONE){
+                                    print("error: ", sqlite3_errmsg(db));
+                                }
+                                sqlite3_finalize(stmt);
+
 
                                 n = (int) write(nsfd, query, strlen(query));
                                 if(n < 0) error("Error write");
@@ -139,17 +154,30 @@ int main(int argc, char *argv[]){
                             sqlite3_close(db_connections[n_conexion]);
                             release_connection(connections, n_conexion);
                             exit(EXIT_SUCCESS);
-                        case CLI_B:
-                            
-                            
-                            sqlite3_close(db_connections[n_conexion]);
-                            release_connection(connections, n_conexion);
-                            exit(EXIT_SUCCESS);
-                        case CLI_C:
-                            
+                        case CLI_C: ;
+                             /*
+                                man sendfile
+                                tengo que hacer un send del file size (fstat) y desp mandar todo con sendfile
+                                */
+                            int out_fd = open(argv[6], O_RDONLY);
+                            if(out_fd < 0) error("Error open");
 
+                            struct stat finfo;
+                            if(fstat(out_fd, &finfo) != 0) error("Error fstat");
+                            n = (int) write(nsfd, &finfo.st_size, sizeof(finfo.st_size));
+                            if(n < 0) error("Error write");
+
+                            printf("Sending %ld bytes\n", finfo.st_size);
+
+                            n = (int) sendfile(nsfd, out_fd, 0, (size_t) finfo.st_size);
+                            if(n < 0) error("Error sendfile");
+
+                            printf("Sended %i bytes\n", n);
+
+                            printf("Descarga finalizada. El cliente se desconectó.\n");
                             sqlite3_close(db_connections[n_conexion]);
                             release_connection(connections, n_conexion);
+                            close(out_fd);
                             exit(EXIT_SUCCESS);
 
                         default:
