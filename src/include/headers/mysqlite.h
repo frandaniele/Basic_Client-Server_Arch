@@ -4,8 +4,8 @@
 
 void open_db_connections(char *filename, sqlite3 *db);
 
-void close_db_connections(sqlite3 **db_list);
-
 int get_connection(int *list, int n);
 
 void release_connection(int *list, int index);
+
+int exec_query(char *db_name, sqlite3 *db_connection, char *query);

@@ -22,7 +22,7 @@ int main(int argc, char *argv[]){
     instalar_handlers(sigint_handler, SIGINT);
     
     memset(query, '\0', MAX_BUFFER);
-    strcpy(query, "SELECT * FROM Cars;");
+    strcpy(query, "SELECT * FROM Cars;"); // obtener nombre de la tabla desde el servidor
     while(1){
         int n;
 

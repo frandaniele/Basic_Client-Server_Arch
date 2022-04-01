@@ -1,30 +1,18 @@
 #include "../headers/mysqlite.h"
+#include <string.h>
 
 /*
     funcion que recibe el nombre de una base de datos y un handler sqlite3
     y abre la conexion con la database en ese handler
     
-    nota: revisar flags
+    nota: no funca, ver. tambien revisar flags
 */
 void open_db_connections(char *filename, sqlite3 *db){
     int rc = sqlite3_open_v2(filename, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, NULL);
-    if(rc){
+    if(rc != SQLITE_OK){
         fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
         exit(EXIT_FAILURE);
-    }
-}
-
-/*
-    cierra las conexiones a database de los handlers pasados en una lista
-*/
-void close_db_connections(sqlite3 **db_list){
-    sqlite3 *db = db_list[0];
-    int i = 1;
-
-    while(db != NULL){
-        sqlite3_close(db);
-        i++;
     }
 }
 
@@ -50,4 +38,19 @@ int get_connection(int *list, int n){
 */
 void release_connection(int *list, int index){
     list[index] = 1;
+}
+
+int exec_query(char *db_name, sqlite3 *db_connection, char *query){
+    char *err_msg = 0;
+    int rc = sqlite3_exec(db_connection, query, 0, 0, &err_msg);
+    
+    if(rc != SQLITE_OK ){
+        fprintf(stderr, "SQL error: %s\n", err_msg);
+        
+        sqlite3_free(err_msg);        
+        sqlite3_close(db_connection);
+        return -1;
+    }
+
+    return 0;
 }

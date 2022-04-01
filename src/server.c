@@ -17,17 +17,31 @@ int main(int argc, char *argv[]){
 		exit(EXIT_SUCCESS);
     }
 
+    char *db_name = argv[6];
+
     /* 5 handlers de db compartidos por todos */
     sqlite3 **db_connections = mmap(NULL, 5*sizeof(sqlite3 *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if(db_connections == MAP_FAILED) error("Mapping");
-
-    for(int i = 0; i < 5; i++) open_db_connections(argv[6], db_connections[i]);
 
     /* vector para controlar acceso a handlers */
     int* connections = mmap(NULL, 5*sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	if(connections == MAP_FAILED) error("Mapping");
 
-    for(int i = 0; i < 5; i++) connections[i] = 1;
+    for(int i = 0; i < 5; i++){
+        //open_db_connections(db_name, db_connections[i]);
+        int rc = sqlite3_open(db_name, &db_connections[i]);
+        if(rc != SQLITE_OK){
+            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db_connections[i]));
+            sqlite3_close(db_connections[i]);
+            exit(EXIT_FAILURE);
+        }
+        connections[i] = 1;
+    }
+
+    char *query =   "DROP TABLE IF EXISTS Mensajes;"
+                    "CREATE TABLE Mensajes(Id INTEGER PRIMARY KEY, Cliente TEXT, Mensaje TEXT);"
+                    "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Server', 'Creacion de tabla');";
+    exec_query(db_name, db_connections[0], query);
 
     /* preparando socket UNIX */
     unlink(argv[1]);
@@ -95,14 +109,14 @@ int main(int argc, char *argv[]){
                     close(sfdunix);
                     close(sfdinet6);
 
-                    int n_conexion; 
-                    while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
-
                     int n = 0;
+                    int n_conexion; 
 
                     switch(tipo_cliente){
                         case CLI_A: // estos clientes hacen lo mismo, mandan query y esperan respuesta
                         case CLI_B: ;
+                            while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
+
                             char query[MAX_BUFFER];
                             char answer[MAX_BUFFER];
 
@@ -114,6 +128,13 @@ int main(int argc, char *argv[]){
                                     break; //cliente desconectado
                                 }
 
+                                if(tipo_cliente == CLI_B){
+                                    char sql[128];
+                                    snprintf(sql, 1124, "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Cliente B, atendido por %i', '%s');", getpid(), query);
+
+                                    exec_query(db_name, db_connections[n_conexion], sql);
+                                }
+
                                 strcpy(answer, "Recibi tu consulta pero todavia no se que hacer.\n");
 
                                 n = (int) write(nsfd, answer, strlen(answer)); //respondo
@@ -121,9 +142,9 @@ int main(int argc, char *argv[]){
                             }
 
                             printf("El cliente se desconectó.\n");
-                            sqlite3_close(db_connections[n_conexion]);
                             release_connection(connections, n_conexion);
                             exit(EXIT_SUCCESS);
+
                         case CLI_C: ; // este cliente solicita descargar el archivo de la base de datos
                             int out_fd = open(argv[6], O_RDONLY); //abro el archivo pasado como argumento
                             if(out_fd < 0) error("Error open");
@@ -142,7 +163,14 @@ int main(int argc, char *argv[]){
                             printf("Sended %i bytes\n", n);
 
                             printf("Descarga finalizada. El cliente se desconectó.\n");
-                            sqlite3_close(db_connections[n_conexion]);
+
+                            while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
+
+                            char sql[128];
+                            snprintf(sql, 127, "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Cliente C, atendido por %i', 'Solicitud de descarga');", getpid());
+
+                            exec_query(db_name, db_connections[n_conexion], sql);
+
                             release_connection(connections, n_conexion);
                             close(out_fd);
                             exit(EXIT_SUCCESS);
@@ -159,11 +187,11 @@ int main(int argc, char *argv[]){
             }
         }
     }
-    close_db_connections(db_connections);
-
     close(sfdinet);
     close(sfdunix);
     close(sfdinet6);
+
+    for(int i = 0; i < 5; i++) sqlite3_close(db_connections[i]);
 
     return 0;
 }
