@@ -22,7 +22,7 @@ int main(int argc, char *argv[]){
     instalar_handlers(sigint_handler, SIGINT);
     
     memset(query, '\0', MAX_BUFFER);
-    strcpy(query, "SELECT * FROM Cars;"); // obtener nombre de la tabla desde el servidor
+    strcpy(query, "SELECT * FROM Mensajes;"); // obtener nombre de la tabla desde el servidor
     while(1){
         int n;
 
@@ -30,6 +30,7 @@ int main(int argc, char *argv[]){
         if(n < 0) error("Error write");
 
         memset(answer, '\0', MAX_BUFFER);
+        //while((n = (int) read(sfd, answer, MAX_BUFFER - 1)) > 0);//recibo hasta que no haya mas
         n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
         if(n < 0) error("Error read");   
 

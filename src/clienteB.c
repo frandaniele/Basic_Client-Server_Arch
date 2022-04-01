@@ -28,6 +28,8 @@ int main(int argc, char *argv[]){
         if(strcmp(buffer, "quit") == 0) break;
 
         if((n = (int) write(sfd, buffer, strlen(buffer))) < 0) error("Error write");
+        
+        //while((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) > 0);//recibo hasta que no haya mas
 
         if((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) < 0) error("Error read");
 

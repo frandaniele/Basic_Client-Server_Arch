@@ -119,6 +119,8 @@ int main(int argc, char *argv[]){
 
                             char query[MAX_BUFFER];
                             char answer[MAX_BUFFER];
+                            sqlite3_stmt *res;
+                            int rc;
 
                             while(1){
                                 memset(query, 0, MAX_BUFFER);
@@ -128,17 +130,36 @@ int main(int argc, char *argv[]){
                                     break; //cliente desconectado
                                 }
 
-                                if(tipo_cliente == CLI_B){
+                                rc = sqlite3_prepare_v2(db_connections[n_conexion], query, -1, &res, 0);    
+                                    
+                                if(rc != SQLITE_OK){
+                                    sprintf(answer, "Failed to fetch data: %s\n", sqlite3_errmsg(db_connections[n_conexion]));
+                                    n = (int) write(nsfd, answer, strlen(answer)); //respondo
+                                    if(n < 0) error("Error write");
+                                }else{
+                                    while(sqlite3_step(res) == SQLITE_ROW){
+                                        sprintf(answer, "%i", sqlite3_column_int(res, 0));
+                                        n = (int) write(nsfd, answer, strlen(answer)); //respondo
+                                        if(n < 0) error("Error write");
+                                        
+                                        strcpy(answer, (const char * restrict) sqlite3_column_text(res, 1));
+                                        n = (int) write(nsfd, answer, strlen(answer)); //respondo
+                                        if(n < 0) error("Error write");
+                                    
+                                        strcpy(answer, (const char * restrict) sqlite3_column_text(res, 2));
+                                        n = (int) write(nsfd, answer, strlen(answer)); //respondo
+                                        if(n < 0) error("Error write");
+                                    }
+
+                                    sqlite3_finalize(res);
+                                } 
+
+                                if(tipo_cliente == CLI_B){ //registro solo los msjs del cliente tipo B
                                     char sql[128];
                                     snprintf(sql, 1124, "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Cliente B, atendido por %i', '%s');", getpid(), query);
 
                                     exec_query(db_name, db_connections[n_conexion], sql);
                                 }
-
-                                strcpy(answer, "Recibi tu consulta pero todavia no se que hacer.\n");
-
-                                n = (int) write(nsfd, answer, strlen(answer)); //respondo
-                                if(n < 0) error("Error write");
                             }
 
                             printf("El cliente se desconectó.\n");
@@ -169,7 +190,7 @@ int main(int argc, char *argv[]){
                             char sql[128];
                             snprintf(sql, 127, "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Cliente C, atendido por %i', 'Solicitud de descarga');", getpid());
 
-                            exec_query(db_name, db_connections[n_conexion], sql);
+                            exec_query(db_name, db_connections[n_conexion], sql); //registro solicitud de descarga del cliente C
 
                             release_connection(connections, n_conexion);
                             close(out_fd);
