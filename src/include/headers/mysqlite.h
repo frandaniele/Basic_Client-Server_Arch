@@ -8,4 +8,6 @@ int get_connection(int *list, int n);
 
 void release_connection(int *list, int index);
 
-int exec_query(char *db_name, sqlite3 *db_connection, char *query);
+int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callback)(void*, int, char**, char**), void *argToCback);
+
+int callback(void *NotUsed, int count, char **data, char **columns);

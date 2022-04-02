@@ -26,14 +26,16 @@ int main(int argc, char *argv[]){
         fgets(buffer, MAX_BUFFER, stdin);
         buffer[strlen(buffer) - 1] = '\0';//reemplazo \n por \0
         if(strcmp(buffer, "quit") == 0) break;
+        if(strcmp(buffer, "") == 0) continue;
 
         if((n = (int) write(sfd, buffer, strlen(buffer))) < 0) error("Error write");
         
-        //while((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) > 0);//recibo hasta que no haya mas
-
-        if((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) < 0) error("Error read");
-
-        printf("%s\n", buffer);
+        memset(buffer, '\0', MAX_BUFFER);
+        while((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) > 0){//recibo hasta que no haya mas
+            if(strcmp(buffer, "Ready") == 0) break;
+            printf("%s\n", buffer);
+            memset(buffer, '\0', MAX_BUFFER);
+        }
     }
     close(sfd);
     exit(EXIT_SUCCESS);

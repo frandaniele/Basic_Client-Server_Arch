@@ -39,9 +39,9 @@ int main(int argc, char *argv[]){
     }
 
     char *query =   "DROP TABLE IF EXISTS Mensajes;"
-                    "CREATE TABLE Mensajes(Id INTEGER PRIMARY KEY, Cliente TEXT, Mensaje TEXT);"
-                    "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Server', 'Creacion de tabla');";
-    exec_query(db_name, db_connections[0], query);
+                    "CREATE TABLE Mensajes(Id INTEGER PRIMARY KEY, Emisor TEXT, Mensaje TEXT);"
+                    "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Server', 'Creacion de tabla');";
+    exec_query(db_name, db_connections[0], query, 0, 0);
 
     /* preparando socket UNIX */
     unlink(argv[1]);
@@ -116,50 +116,27 @@ int main(int argc, char *argv[]){
                         case CLI_A: // estos clientes hacen lo mismo, mandan query y esperan respuesta
                         case CLI_B: ;
                             while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
-
-                            char query[MAX_BUFFER];
-                            char answer[MAX_BUFFER];
-                            sqlite3_stmt *res;
-                            int rc;
+                            char query2[MAX_BUFFER];
 
                             while(1){
-                                memset(query, 0, MAX_BUFFER);
-                                memset(answer, 0, MAX_BUFFER);
+                                int *ptr_fd = &nsfd;
 
-                                if((n = (int) read(nsfd, query, MAX_BUFFER - 1)) <= 0){ //recibo query
+                                memset(query2, 0, MAX_BUFFER);
+
+                                if((n = (int) read(nsfd, query2, MAX_BUFFER - 1)) <= 0){ //recibo query
                                     break; //cliente desconectado
                                 }
 
-                                rc = sqlite3_prepare_v2(db_connections[n_conexion], query, -1, &res, 0);    
-                                    
-                                if(rc != SQLITE_OK){
-                                    sprintf(answer, "Failed to fetch data: %s\n", sqlite3_errmsg(db_connections[n_conexion]));
-                                    n = (int) write(nsfd, answer, strlen(answer)); //respondo
-                                    if(n < 0) error("Error write");
-                                }else{
-                                    while(sqlite3_step(res) == SQLITE_ROW){
-                                        sprintf(answer, "%i", sqlite3_column_int(res, 0));
-                                        n = (int) write(nsfd, answer, strlen(answer)); //respondo
-                                        if(n < 0) error("Error write");
-                                        
-                                        strcpy(answer, (const char * restrict) sqlite3_column_text(res, 1));
-                                        n = (int) write(nsfd, answer, strlen(answer)); //respondo
-                                        if(n < 0) error("Error write");
-                                    
-                                        strcpy(answer, (const char * restrict) sqlite3_column_text(res, 2));
-                                        n = (int) write(nsfd, answer, strlen(answer)); //respondo
-                                        if(n < 0) error("Error write");
-                                    }
-
-                                    sqlite3_finalize(res);
-                                } 
+                                exec_query(db_name, db_connections[n_conexion], query2, callback, ptr_fd);
 
                                 if(tipo_cliente == CLI_B){ //registro solo los msjs del cliente tipo B
-                                    char sql[128];
-                                    snprintf(sql, 1124, "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Cliente B, atendido por %i', '%s');", getpid(), query);
-
-                                    exec_query(db_name, db_connections[n_conexion], sql);
+                                    char sql[2048];
+                                    sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente B, atendido por %i', '%s');", getpid(), query2);
+                                    printf("%s\n", sql);
+                                    exec_query(db_name, db_connections[n_conexion], sql, 0, 0);
                                 }
+                                
+                                if((n = (int) write(nsfd, "Ready", 5)) < 0) error("Error write");
                             }
 
                             printf("El cliente se desconectó.\n");
@@ -167,6 +144,15 @@ int main(int argc, char *argv[]){
                             exit(EXIT_SUCCESS);
 
                         case CLI_C: ; // este cliente solicita descargar el archivo de la base de datos
+                            while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
+
+                            char sql[MAX_BUFFER];
+                            sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente C, atendido por %i', 'Solicitud de descarga');", getpid());
+
+                            exec_query(db_name, db_connections[n_conexion], sql, 0, 0); //registro solicitud de descarga del cliente C
+
+                            release_connection(connections, n_conexion);
+
                             int out_fd = open(argv[6], O_RDONLY); //abro el archivo pasado como argumento
                             if(out_fd < 0) error("Error open");
 
@@ -185,14 +171,6 @@ int main(int argc, char *argv[]){
 
                             printf("Descarga finalizada. El cliente se desconectó.\n");
 
-                            while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
-
-                            char sql[128];
-                            snprintf(sql, 127, "INSERT INTO Mensajes(Cliente, Mensaje) VALUES ('Cliente C, atendido por %i', 'Solicitud de descarga');", getpid());
-
-                            exec_query(db_name, db_connections[n_conexion], sql); //registro solicitud de descarga del cliente C
-
-                            release_connection(connections, n_conexion);
                             close(out_fd);
                             exit(EXIT_SUCCESS);
 

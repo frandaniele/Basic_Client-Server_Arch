@@ -1,5 +1,7 @@
 #include "../headers/mysqlite.h"
+#include "../headers/mysockets.h"
 #include <string.h>
+#include <unistd.h>
 
 /*
     funcion que recibe el nombre de una base de datos y un handler sqlite3
@@ -40,17 +42,36 @@ void release_connection(int *list, int index){
     list[index] = 1;
 }
 
-int exec_query(char *db_name, sqlite3 *db_connection, char *query){
+int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callback)(void*, int, char**, char**), void *argToCback){
     char *err_msg = 0;
-    int rc = sqlite3_exec(db_connection, query, 0, 0, &err_msg);
+    int rc = sqlite3_exec(db_connection, query, callback, argToCback, &err_msg);
     
-    if(rc != SQLITE_OK ){
-        fprintf(stderr, "SQL error: %s\n", err_msg);
-        
+    if(rc != SQLITE_OK){
+        int n;
+        char *str;
+        int *fd = (int *) argToCback;
+
+        sprintf(str, "SQL error: %s\n", err_msg);
+        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
+
         sqlite3_free(err_msg);        
-        sqlite3_close(db_connection);
         return -1;
     }
 
+    return 0;
+}
+
+int callback(void *ptrToFD, int count, char **data, char **columns){
+    int *fd = (int *) ptrToFD;
+    int n;
+    char *str;
+
+    for(int i = 0; i < count; i++){
+        printf("col: %s data: %s\n", columns[i], data[i]);
+        sprintf(str, "%s = %s\n", columns[i], data[i] ? data[i] : "NULL");
+        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
+    }
+    if((n = (int) write(*fd, "\n", 1)) < 0) error("Error write");
+    
     return 0;
 }
