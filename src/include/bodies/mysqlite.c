@@ -64,10 +64,10 @@ int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callbac
 int callback(void *ptrToFD, int count, char **data, char **columns){
     int *fd = (int *) ptrToFD;
     int n;
-    char *str;
+    char str[MAX_BUFFER];
 
     for(int i = 0; i < count; i++){
-        printf("col: %s data: %s\n", columns[i], data[i]);
+        memset(str, '\0', MAX_BUFFER);
         sprintf(str, "%s = %s\n", columns[i], data[i] ? data[i] : "NULL");
         if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
     }

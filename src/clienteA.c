@@ -28,13 +28,12 @@ int main(int argc, char *argv[]){
 
         n = (int) write(sfd, query, strlen(query));
         if(n < 0) error("Error write");
-
+        
         memset(answer, '\0', MAX_BUFFER);
-        //while((n = (int) read(sfd, answer, MAX_BUFFER - 1)) > 0);//recibo hasta que no haya mas
         n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
         if(n < 0) error("Error read");   
-
         printf("%s\n", answer);
+
         sleep(2);
     }
 

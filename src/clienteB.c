@@ -3,8 +3,8 @@
 int main(int argc, char *argv[]){
     int sfd, port;
 	struct sockaddr_in6 server_address;
-    char buffer[MAX_BUFFER];
-    memset(buffer, '\0', MAX_BUFFER);
+    char query[MAX_BUFFER], answer[MAX_BUFFER], ack[6] = "Ready\0";
+    memset(query, '\0', MAX_BUFFER);
 
     if(argc < 3){
 		fprintf(stderr, "Uso: %s <host> <puerto>\n", argv[0]);
@@ -23,19 +23,22 @@ int main(int argc, char *argv[]){
     while(1){
         int n;
         
-        fgets(buffer, MAX_BUFFER, stdin);
-        buffer[strlen(buffer) - 1] = '\0';//reemplazo \n por \0
-        if(strcmp(buffer, "quit") == 0) break;
-        if(strcmp(buffer, "") == 0) continue;
+        memset(query, '\0', MAX_BUFFER);
+        fgets(query, MAX_BUFFER, stdin);
+        query[strlen(query) - 1] = '\0';//reemplazo \n por \0
+        if(strcmp(query, "quit") == 0) break;
+        if(strcmp(query, "") == 0) continue;
 
-        if((n = (int) write(sfd, buffer, strlen(buffer))) < 0) error("Error write");
+        n = (int) write(sfd, query, strlen(query));
+        if(n < 0) error("Error write");
         
-        memset(buffer, '\0', MAX_BUFFER);
-        while((n = (int) read(sfd, buffer, MAX_BUFFER - 1)) > 0){//recibo hasta que no haya mas
-            if(strcmp(buffer, "Ready") == 0) break;
-            printf("%s\n", buffer);
-            memset(buffer, '\0', MAX_BUFFER);
-        }
+        do{
+            memset(answer, '\0', MAX_BUFFER);
+            n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
+            if(n < 0) error("Error read");   
+            printf("%s\n", answer);
+        }while(strncmp(ack, answer, 5) != 0);
+
     }
     close(sfd);
     exit(EXIT_SUCCESS);

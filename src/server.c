@@ -5,6 +5,12 @@
 #include "include/headers/mysockets.h"
 #include "include/headers/mysqlite.h"
 
+/*
+    INSERT INTO ?
+    SEMAPHORES
+    ROUND ROBIN ?
+*/
+
 int main(int argc, char *argv[]){
     int sfdinet, sfdunix, sfdinet6;
     socklen_t address_size, server_struct_len;
@@ -116,27 +122,26 @@ int main(int argc, char *argv[]){
                         case CLI_A: // estos clientes hacen lo mismo, mandan query y esperan respuesta
                         case CLI_B: ;
                             while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
-                            char query2[MAX_BUFFER];
+                            char query2[MAX_BUFFER], ack[6] = "Ready\0";
 
                             while(1){
                                 int *ptr_fd = &nsfd;
 
                                 memset(query2, 0, MAX_BUFFER);
 
-                                if((n = (int) read(nsfd, query2, MAX_BUFFER - 1)) <= 0){ //recibo query
-                                    break; //cliente desconectado
-                                }
+                                n = (int) read(nsfd, query2, MAX_BUFFER - 1); //recibo query
+                                if(n <= 0) break; //cliente desconectado
 
                                 exec_query(db_name, db_connections[n_conexion], query2, callback, ptr_fd);
 
                                 if(tipo_cliente == CLI_B){ //registro solo los msjs del cliente tipo B
                                     char sql[2048];
                                     sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente B, atendido por %i', '%s');", getpid(), query2);
-                                    printf("%s\n", sql);
                                     exec_query(db_name, db_connections[n_conexion], sql, 0, 0);
                                 }
-                                
-                                if((n = (int) write(nsfd, "Ready", 5)) < 0) error("Error write");
+
+                                n = (int) write(nsfd, ack, strlen(ack));
+                                if(n < 0) error("Error write");
                             }
 
                             printf("El cliente se desconectó.\n");
