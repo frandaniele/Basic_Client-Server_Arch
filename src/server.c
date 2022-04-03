@@ -2,13 +2,13 @@
 #include <sys/sendfile.h>
 #include <sys/mman.h>
 #include <semaphore.h>
+#include <sys/time.h>
 #include "include/headers/sqlite3.h"
 #include "include/headers/mysockets.h"
 #include "include/headers/mysqlite.h"
 
 /*
     INSERT INTO ?
-    ROUND ROBIN ?
 */
 
 int main(int argc, char *argv[]){
@@ -128,11 +128,23 @@ int main(int argc, char *argv[]){
                             while((n_conexion = (get_connection(connections, 5, sem))) == -1); //si no hay handler disponible me quedo aca
                             char query2[MAX_BUFFER], ack[6] = "Ready\0";
 
+                            struct timeval curr_time, last_time;
+                            gettimeofday(&last_time, NULL);
+
                             while(1){
                                 int *ptr_fd = &nsfd;
 
                                 memset(query2, 0, MAX_BUFFER);
 
+                                gettimeofday(&curr_time, NULL); //mido tiempo actual
+                                if((curr_time.tv_sec - last_time.tv_sec) >= 10){ // pasaron 10 segundos
+                                    gettimeofday(&last_time, NULL); //actualizo tiempo
+                                    release_connection(connections, n_conexion); // suelto la conexion
+                                    printf("Cliente atendido por %i solto conexion\n", getpid());
+                                    while((n_conexion = (get_connection(connections, 5, sem))) == -1); //trato de agarrarla de vuelta
+                                    printf("Cliente atendido por %i recupero conexion\n", getpid());
+                                }
+                                
                                 n = (int) read(nsfd, query2, MAX_BUFFER - 1); //recibo query
                                 if(n <= 0) break; //cliente desconectado
 
