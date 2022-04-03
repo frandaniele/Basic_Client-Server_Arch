@@ -23,7 +23,7 @@ void open_db_connections(char *filename, sqlite3 *db){
 */
 int get_connection(int *list, int n, sem_t *sem){
     sem_wait(sem);
-    for(int i = 0; i < n; i++){
+    for(int i = 0; i < n; i++){// seccion critica
         if(list[i] == 1){
             list[i] = 0;
             sem_post(sem);
@@ -55,7 +55,7 @@ int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callbac
 
         sprintf(str, "SQL error: %s\n", err_msg);
         
-        if((n = (int) write(*fd, str, strlen(str))) <= 0) error("Error write");
+        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
         
         sqlite3_free(err_msg);        
         return -1;
@@ -71,8 +71,8 @@ int callback(void *ptrToFD, int count, char **data, char **columns){
 
     for(int i = 0; i < count; i++){
         memset(str, '\0', MAX_BUFFER);
-        sprintf(str, "%s = %s\n", columns[i], data[i] ? data[i] : "NULL");
-        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
+        sprintf(str, "%s = %s\n", columns[i], data[i] ? data[i] : "NULL");// me devuelve el nombre de la columna y el contenido
+        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write"); //escribo en el socket
     }
     if((n = (int) write(*fd, "\n", 1)) < 0) error("Error write");
     

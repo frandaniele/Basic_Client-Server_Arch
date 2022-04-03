@@ -11,6 +11,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_SUCCESS);
 	}
 
+    /* preparo address */
     port = atoi(argv[2]);
 
     memset((char *)&server_address, '0', sizeof(server_address));
@@ -23,13 +24,14 @@ int main(int argc, char *argv[]){
     while(1){
         int n;
         
+        /* scaneo la query del usuario */
         memset(query, '\0', MAX_BUFFER);
         fgets(query, MAX_BUFFER, stdin);
         query[strlen(query) - 1] = '\0';//reemplazo \n por \0
         if(strcmp(query, "quit") == 0) break;
         if(strcmp(query, "") == 0) continue;
 
-        n = (int) write(sfd, query, strlen(query));
+        n = (int) write(sfd, query, strlen(query));// la mando
         if(n < 0) error("Error write");
         
         do{
@@ -37,7 +39,7 @@ int main(int argc, char *argv[]){
             n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
             if(n < 0) error("Error read");   
             printf("%s\n", answer);
-        }while(strncmp(ack, answer, 5) != 0);
+        }while(strncmp(ack, answer, 5) != 0);// leo la respuesta hasta recibir "Ready"
 
     }
     close(sfd);

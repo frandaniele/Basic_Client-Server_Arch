@@ -11,12 +11,14 @@ int main(int argc, char *argv[]){
         exit(EXIT_SUCCESS);
     }
 
+    /* preparo address */
     memset((char *)&client_address, '0', sizeof(client_address));
     strcpy(client_address.sun_path, argv[1]);
     client_address.sun_family = AF_UNIX;
   
     sfd = get_tcp_client_socket(PF_UNIX, (struct sockaddr *)&client_address, sizeof(client_address));
 
+    /* archivo donde voy a guardar la BD */
     fptr = fopen("descarga", "w"); //crea un archivo que sera copia del recibido
     
     memset(buffer, '\0', MAX_BUFFER);
@@ -30,7 +32,7 @@ int main(int argc, char *argv[]){
         n = (int) read(sfd, buffer, MAX_BUFFER);
         if(n < 0) error("Error read");
 
-        n = (int) fwrite(buffer, sizeof(char), (size_t) n, fptr);
+        n = (int) fwrite(buffer, sizeof(char), (size_t) n, fptr);// voy "creandolo"
         if(n < 0) error("Error fwrite");
 
         bytes_recvd += n;

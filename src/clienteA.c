@@ -10,6 +10,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_SUCCESS);
 	}
 
+    /* preparo address */
     port = atoi(argv[2]);
 
     memset((char *)&server_address, '0', sizeof(server_address));
@@ -19,22 +20,22 @@ int main(int argc, char *argv[]){
 
     sfd = get_tcp_client_socket(PF_INET, (struct sockaddr *)&server_address, sizeof(server_address));
 
-    instalar_handlers(sigint_handler, SIGINT);
+    instalar_handlers(sigint_handler, SIGINT);//para un close desp de ^C
     
     memset(query, '\0', MAX_BUFFER);
-    strcpy(query, "SELECT * FROM Mensajes;"); // obtener nombre de la tabla desde el servidor
+    strcpy(query, "SELECT * FROM Mensajes;"); // query 
     while(1){
         int n;
 
-        n = (int) write(sfd, query, strlen(query));
+        n = (int) write(sfd, query, strlen(query));// la mando
         if(n < 0) error("Error write");
         
         memset(answer, '\0', MAX_BUFFER);
-        n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo hasta que no haya mas
+        n = (int) read(sfd, answer, MAX_BUFFER - 1);//recibo respuesta
         if(n < 0) error("Error read");   
         printf("%s\n", answer);
 
-        sleep(2);
+        sleep(2); 
     }
 
     close(sfd);

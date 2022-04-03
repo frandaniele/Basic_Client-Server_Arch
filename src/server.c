@@ -20,10 +20,10 @@ int main(int argc, char *argv[]){
 		exit(EXIT_SUCCESS);
     }
 
-    char *db_name = argv[6];
+    char *db_name = argv[6]; //nombre de la database
 
     sem_unlink("semaforo");
-    if((sem = sem_open("semaforo", O_CREAT | O_EXCL, 0644, 1)) == SEM_FAILED) error("semaphore");
+    if((sem = sem_open("semaforo", O_CREAT | O_EXCL, 0644, 1)) == SEM_FAILED) error("semaphore"); //para obtencion de db connections
     
     /* 5 handlers de db compartidos por todos */
     sqlite3 **db_connections = mmap(NULL, 5*sizeof(sqlite3 *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
@@ -34,7 +34,6 @@ int main(int argc, char *argv[]){
 	if(connections == MAP_FAILED) error("Mapping");
 
     for(int i = 0; i < 5; i++){
-        //open_db_connections(db_name, db_connections[i]);
         int rc = sqlite3_open(db_name, &db_connections[i]);
         if(rc != SQLITE_OK){
             fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db_connections[i]));
@@ -47,7 +46,7 @@ int main(int argc, char *argv[]){
     char *query =   "DROP TABLE IF EXISTS Mensajes;"
                     "CREATE TABLE Mensajes(Id INTEGER PRIMARY KEY, Emisor TEXT, Mensaje TEXT);"
                     "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Server', 'Creacion de tabla');";
-    exec_query(db_name, db_connections[0], query, 0, 0);
+    exec_query(db_name, db_connections[0], query, 0, 0); //creo la tabla donde voy a loggear los mensajes
 
     /* preparando socket UNIX */
     unlink(argv[1]);
@@ -128,6 +127,7 @@ int main(int argc, char *argv[]){
 
                             gettimeofday(&last_time, NULL);
                             while(1){
+                                /* esto es para ir prestandose las conexiones entre clientes */
                                 gettimeofday(&curr_time, NULL); //mido tiempo actual
                                 if((curr_time.tv_sec - last_time.tv_sec) >= 10){ // pasaron 10 segundos
                                     gettimeofday(&last_time, NULL); //actualizo tiempo
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]){
                                 n = (int) read(nsfd, query2, MAX_BUFFER - 1); //recibo query
                                 if(n <= 0) break; //cliente desconectado
                                 
-                                int *ptr_fd = &nsfd;
+                                int *ptr_fd = &nsfd;//para hacer write en el socket
                                 exec_query(db_name, db_connections[n_conexion], query2, callback, ptr_fd);
 
                                 if(tipo_cliente == CLI_B){ //registro solo los msjs del cliente tipo B
@@ -162,12 +162,10 @@ int main(int argc, char *argv[]){
 
                             char sql[MAX_BUFFER];
                             sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente C, atendido por %i', 'Solicitud de descarga');", getpid());
-
                             exec_query(db_name, db_connections[n_conexion], sql, 0, 0); //registro solicitud de descarga del cliente C
-
                             release_connection(connections, n_conexion);
 
-                            int out_fd = open(argv[6], O_RDONLY); //abro el archivo pasado como argumento
+                            int out_fd = open(db_name, O_RDONLY); //abro el archivo pasado como argumento
                             if(out_fd < 0) error("Error open");
 
                             struct stat finfo;// para calcular el tamaño del archivo
@@ -182,7 +180,6 @@ int main(int argc, char *argv[]){
                             if(n < 0) error("Error sendfile");
 
                             printf("Sended %i bytes\n", n);
-
                             printf("Descarga finalizada. El cliente se desconectó.\n");
 
                             close(out_fd);
