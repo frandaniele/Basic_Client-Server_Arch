@@ -49,12 +49,14 @@ int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callbac
     
     if(rc != SQLITE_OK){
         int n;
-        char *str;
         int *fd = (int *) argToCback;
+        char str[2048];
+        memset(str, '\0', 2048);
 
         sprintf(str, "SQL error: %s\n", err_msg);
-        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
-
+        
+        if((n = (int) write(*fd, str, strlen(str))) <= 0) error("Error write");
+        
         sqlite3_free(err_msg);        
         return -1;
     }

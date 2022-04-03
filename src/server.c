@@ -7,10 +7,6 @@
 #include "include/headers/mysockets.h"
 #include "include/headers/mysqlite.h"
 
-/*
-    INSERT INTO ?
-*/
-
 int main(int argc, char *argv[]){
     int sfdinet, sfdunix, sfdinet6;
     socklen_t address_size, server_struct_len;
@@ -126,33 +122,30 @@ int main(int argc, char *argv[]){
                         case CLI_A: // estos clientes hacen lo mismo, mandan query y esperan respuesta
                         case CLI_B: ;
                             while((n_conexion = (get_connection(connections, 5, sem))) == -1); //si no hay handler disponible me quedo aca
+                            
                             char query2[MAX_BUFFER], ack[6] = "Ready\0";
-
                             struct timeval curr_time, last_time;
+
                             gettimeofday(&last_time, NULL);
-
                             while(1){
-                                int *ptr_fd = &nsfd;
-
-                                memset(query2, 0, MAX_BUFFER);
-
                                 gettimeofday(&curr_time, NULL); //mido tiempo actual
                                 if((curr_time.tv_sec - last_time.tv_sec) >= 10){ // pasaron 10 segundos
                                     gettimeofday(&last_time, NULL); //actualizo tiempo
+                                    
                                     release_connection(connections, n_conexion); // suelto la conexion
-                                    printf("Cliente atendido por %i solto conexion\n", getpid());
                                     while((n_conexion = (get_connection(connections, 5, sem))) == -1); //trato de agarrarla de vuelta
-                                    printf("Cliente atendido por %i recupero conexion\n", getpid());
                                 }
                                 
+                                memset(query2, 0, MAX_BUFFER);
                                 n = (int) read(nsfd, query2, MAX_BUFFER - 1); //recibo query
                                 if(n <= 0) break; //cliente desconectado
-
+                                
+                                int *ptr_fd = &nsfd;
                                 exec_query(db_name, db_connections[n_conexion], query2, callback, ptr_fd);
 
                                 if(tipo_cliente == CLI_B){ //registro solo los msjs del cliente tipo B
                                     char sql[2048];
-                                    sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente B, atendido por %i', '%s');", getpid(), query2);
+                                    sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente B, atendido por %i', \"%s\");", getpid(), query2);
                                     exec_query(db_name, db_connections[n_conexion], sql, 0, 0);
                                 }
 
