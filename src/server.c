@@ -1,13 +1,13 @@
 #include <poll.h>
 #include <sys/sendfile.h>
 #include <sys/mman.h>
+#include <semaphore.h>
 #include "include/headers/sqlite3.h"
 #include "include/headers/mysockets.h"
 #include "include/headers/mysqlite.h"
 
 /*
     INSERT INTO ?
-    SEMAPHORES
     ROUND ROBIN ?
 */
 
@@ -17,6 +17,7 @@ int main(int argc, char *argv[]){
     struct sockaddr_storage incoming_address;
 	struct sockaddr_un server_address;
     struct pollfd *pfds = malloc(sizeof(*pfds) * 3); //3 sockets
+    sem_t *sem;    
     
     if(argc != 7){
         fprintf(stderr, "Uso: %s <archivo socket> <ipv4> <puerto ipv4> <ipv6> <puerto ipv6> <database>\n", argv[0]);
@@ -25,6 +26,9 @@ int main(int argc, char *argv[]){
 
     char *db_name = argv[6];
 
+    sem_unlink("semaforo");
+    if((sem = sem_open("semaforo", O_CREAT | O_EXCL, 0644, 1)) == SEM_FAILED) error("semaphore");
+    
     /* 5 handlers de db compartidos por todos */
     sqlite3 **db_connections = mmap(NULL, 5*sizeof(sqlite3 *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if(db_connections == MAP_FAILED) error("Mapping");
@@ -121,7 +125,7 @@ int main(int argc, char *argv[]){
                     switch(tipo_cliente){
                         case CLI_A: // estos clientes hacen lo mismo, mandan query y esperan respuesta
                         case CLI_B: ;
-                            while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
+                            while((n_conexion = (get_connection(connections, 5, sem))) == -1); //si no hay handler disponible me quedo aca
                             char query2[MAX_BUFFER], ack[6] = "Ready\0";
 
                             while(1){
@@ -149,7 +153,7 @@ int main(int argc, char *argv[]){
                             exit(EXIT_SUCCESS);
 
                         case CLI_C: ; // este cliente solicita descargar el archivo de la base de datos
-                            while((n_conexion = (get_connection(connections, 5))) == -1); //si no hay handler disponible me quedo aca
+                            while((n_conexion = (get_connection(connections, 5, sem))) == -1); //si no hay handler disponible me quedo aca
 
                             char sql[MAX_BUFFER];
                             sprintf(sql, "INSERT INTO Mensajes(Emisor, Mensaje) VALUES ('Cliente C, atendido por %i', 'Solicitud de descarga');", getpid());
@@ -194,6 +198,8 @@ int main(int argc, char *argv[]){
     close(sfdinet);
     close(sfdunix);
     close(sfdinet6);
+    sem_unlink("semaforo");
+    sem_close(sem);
 
     for(int i = 0; i < 5; i++) sqlite3_close(db_connections[i]);
 

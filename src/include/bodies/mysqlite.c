@@ -1,7 +1,5 @@
 #include "../headers/mysqlite.h"
 #include "../headers/mysockets.h"
-#include <string.h>
-#include <unistd.h>
 
 /*
     funcion que recibe el nombre de una base de datos y un handler sqlite3
@@ -23,13 +21,16 @@ void open_db_connections(char *filename, sqlite3 *db){
     si la hay le devuelve el indice del handler
     y sino devuelve -1
 */
-int get_connection(int *list, int n){
+int get_connection(int *list, int n, sem_t *sem){
+    sem_wait(sem);
     for(int i = 0; i < n; i++){
         if(list[i] == 1){
             list[i] = 0;
+            sem_post(sem);
             return i;
         }
     }
+    sem_post(sem);
 
     return -1;
 }
