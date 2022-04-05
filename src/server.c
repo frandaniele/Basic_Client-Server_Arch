@@ -205,5 +205,10 @@ int main(int argc, char *argv[]){
 
     for(int i = 0; i < 5; i++) sqlite3_close(db_connections[i]);
 
+    if(munmap(db_connections, 5*sizeof(sqlite3 *)) || munmap(connections, 5*sizeof(int))){
+        perror("Unmapping");
+        exit(EXIT_FAILURE);
+    }	
+
     return 0;
 }
