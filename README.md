@@ -48,5 +48,8 @@ Utilicé el cliente con protocolo UNIX con conexión del laboratorio 1 y entonce
     -   CLI_A y CLI_B: se manejan de la misma forma, ya que ambos mandan una consulta y esperan la respuesta. Lo primero que se hace es intentar conseguir acceso a un handler de BD mediante _get_connection_, una vez conseguido se lee la query del cliente y se ejecuta en la BD mediante _exec_query_ con la funcion callback que se encarga de ir escribiendo la respuesta en el cliente mediante el socket. Luego si se trata de CLI_B se registra la query en la tabla "Mensajes" y se escribe en el socket "Ready" como un ACK. Esto se repite todo el tiempo hasta que el cliente se desconecte, con la particularidad de que cada 10 segundos se libera el handler de BD para darle lugar a otro cliente, y se vuelve a intentar obtener la misma u otra conexion.
     -   CLI_C: se intenta obtener una conexion a BD, luego se registra la solicitud de descarga en la tabla "Mensajes" y se suelta la conexion. A continuación se abre el archivo de la base de datos en modo lectura, se calcula su tamaño en bytes y se escribe en el socket para el cliente dicho tamaño. Por último se envía todo el archivo al cliente mediante _sendfile_
 
-## Diagramas de flujo
-A continuación, se adjuntan los diagramas de flujo del servidor y de los clientes.
+## Diagramas
+
+### Diagrama de bloques
+En este diagrama se observa como cada tipo de cliente se conecta al servidor mediante un socket diferente, y el servidor está conectado a la base de datos, siendo el intermediario entre la misma y los clientes.
+![Diagrama de bloques](img/diagrama_bloques_cliente_servidor.png)
