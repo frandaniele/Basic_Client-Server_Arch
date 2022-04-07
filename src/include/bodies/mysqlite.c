@@ -2,18 +2,19 @@
 #include "../headers/mysockets.h"
 
 /*
-    funcion que recibe el nombre de una base de datos y un handler sqlite3
-    y abre la conexion con la database en ese handler
-    
-    nota: no funca, ver. tambien revisar flags
+    funcion que recibe el nombre de una base de datos, un arreglo de handlers sqlite3 y la cantidad
+    abre la conexion con la database en ese handler
 */
-void open_db_connections(char *filename, sqlite3 *db){
-    int rc = sqlite3_open_v2(filename, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, NULL);
-    if(rc != SQLITE_OK){
-        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        exit(EXIT_FAILURE);
-    }
+void open_db_connections(char *filename, sqlite3 **db, int count){
+    int rc;
+
+    for(int i = 0; i < count; i++){
+        if((rc = sqlite3_open(filename, &db[i])) != SQLITE_OK){
+            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db[i]));
+            sqlite3_close(db[i]);
+            exit(EXIT_FAILURE);
+        }
+    } 
 }
 
 /*
@@ -43,6 +44,11 @@ void release_connection(int *list, int index){
     list[index] = 1;
 }
 
+/*
+    recibe nombre de BD, un handler de conexion, una query, funcion cb y argumento p esa funcion
+    ejecuta la query mediante sqlite3_exec con conexion y funcion callback pasadas
+    chequea errores de query y si lo hay se lo comunica al socket
+*/
 int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callback)(void*, int, char**, char**), void *argToCback){
     char *err_msg = 0;
     int rc = sqlite3_exec(db_connection, query, callback, argToCback, &err_msg);
@@ -64,6 +70,10 @@ int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callbac
     return 0;
 }
 
+/*
+    funcion callback para sqlite3_exec
+    escribe las respuestas al fd (de socket) pasado como argumento
+*/
 int callback(void *ptrToFD, int count, char **data, char **columns){
     int *fd = (int *) ptrToFD;
     int n;

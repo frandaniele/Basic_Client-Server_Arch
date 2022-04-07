@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <semaphore.h>
 
-void open_db_connections(char *filename, sqlite3 *db);
+void open_db_connections(char *filename, sqlite3 **db, int count);
 
 int get_connection(int *list, int n, sem_t *sem);
 

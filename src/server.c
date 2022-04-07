@@ -33,13 +33,8 @@ int main(int argc, char *argv[]){
     int* connections = mmap(NULL, 5*sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	if(connections == MAP_FAILED) error("Mapping");
 
+    open_db_connections(db_name, db_connections, 5);
     for(int i = 0; i < 5; i++){
-        int rc = sqlite3_open(db_name, &db_connections[i]);
-        if(rc != SQLITE_OK){
-            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db_connections[i]));
-            sqlite3_close(db_connections[i]);
-            exit(EXIT_FAILURE);
-        }
         connections[i] = 1;
     }
 

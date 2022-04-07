@@ -35,7 +35,7 @@ int main(int argc, char *argv[]){
         if(n < 0) error("Error read");   
         printf("%s\n", answer);
 
-        sleep(2); 
+        sleep(1); 
     }
 
     close(sfd);
