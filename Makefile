@@ -32,7 +32,7 @@ mysqlite.o: src/include/bodies/mysqlite.c src/include/headers/mysqlite.h
 		$(CC) $(OFLAGS) -c src/include/bodies/mysqlite.c -o src/obj/mysqlite.o
 
 cppcheck: 
-		cppcheck --enable=all --suppress=missingIncludeSystem src/clienteA.c src/clienteB.c src/clienteC.c src/server.c 2>err.txt
+		cppcheck --enable=all --suppress=missingIncludeSystem src/clienteA.c src/clienteB.c src/clienteC.c src/server.c src/include/bodies/mysqlite.c src/include/bodies/mysockets.c 2>err.txt
 
 build_folders:
 	mkdir -p ./src/obj ./src/bin 

@@ -6,10 +6,8 @@
     abre la conexion con la database en ese handler
 */
 void open_db_connections(char *filename, sqlite3 **db, int count){
-    int rc;
-
     for(int i = 0; i < count; i++){
-        if((rc = sqlite3_open(filename, &db[i])) != SQLITE_OK){
+        if(sqlite3_open(filename, &db[i]) != SQLITE_OK){
             fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db[i]));
             sqlite3_close(db[i]);
             exit(EXIT_FAILURE);
@@ -54,14 +52,13 @@ int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callbac
     int rc = sqlite3_exec(db_connection, query, callback, argToCback, &err_msg);
     
     if(rc != SQLITE_OK){
-        int n;
         int *fd = (int *) argToCback;
         char str[2048];
         memset(str, '\0', 2048);
 
         sprintf(str, "SQL error: %s\n", err_msg);
         
-        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write");
+        if(write(*fd, str, strlen(str)) < 0) error("Error write");
         
         sqlite3_free(err_msg);        
         return -1;
@@ -76,15 +73,14 @@ int exec_query(char *db_name, sqlite3 *db_connection, char *query, int (*callbac
 */
 int callback(void *ptrToFD, int count, char **data, char **columns){
     int *fd = (int *) ptrToFD;
-    int n;
     char str[MAX_BUFFER];
 
     for(int i = 0; i < count; i++){
         memset(str, '\0', MAX_BUFFER);
         sprintf(str, "%s = %s\n", columns[i], data[i] ? data[i] : "NULL");// me devuelve el nombre de la columna y el contenido
-        if((n = (int) write(*fd, str, strlen(str))) < 0) error("Error write"); //escribo en el socket
+        if(write(*fd, str, strlen(str)) < 0) error("Error write"); //escribo en el socket
     }
-    if((n = (int) write(*fd, "\n", 1)) < 0) error("Error write");
+    if(write(*fd, "\n", 1) < 0) error("Error write");
     
     return 0;
 }
